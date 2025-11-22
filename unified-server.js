@@ -10,6 +10,7 @@ const path = require("path");
 const { firefox } = require("playwright");
 const os = require("os");
 
+// ... [AuthSource class unchanged] ...
 // ===================================================================================
 // AUTH SOURCE MANAGEMENT MODULE
 // ===================================================================================
@@ -164,6 +165,7 @@ class AuthSource {
   }
 }
 
+// ... [BrowserManager class unchanged] ...
 // ===================================================================================
 // BROWSER MANAGEMENT MODULE
 // ===================================================================================
@@ -461,6 +463,8 @@ class BrowserManager {
     );
   }
 }
+
+// ... [LoggingService, MessageQueue, ConnectionRegistry classes unchanged] ...
 
 // ===================================================================================
 // PROXY SERVER MODULE
@@ -1125,6 +1129,7 @@ class RequestHandler {
     }
   }
 
+// ... [processModelListRequest and helpers unchanged] ...
 // [修改] 动态获取模型列表
 async processModelListRequest(req, res) {
   const requestId = this._generateRequestId();
@@ -1702,6 +1707,16 @@ async processModelListRequest(req, res) {
       maxOutputTokens: openaiBody.max_tokens,
       stopSequences: openaiBody.stop,
     };
+    
+    // =================================================================
+    // [新增] 动态注入 Thinking / Reasoning 参数
+    // 如果用户在面板启用了 "推理模式"，则强行注入 thinkingConfig
+    // =================================================================
+    if (this.serverSystem.enableReasoning) {
+        this.logger.info("[Adapter] 检测到推理模式已启用，正在注入 thinkingConfig...");
+        generationConfig.thinkingConfig = { includeThoughts: true };
+    }
+    
     googleRequest.generationConfig = generationConfig;
 
     googleRequest.safetySettings = [
@@ -1795,6 +1810,9 @@ class ProxyServerSystem extends EventEmitter {
     this.logger = new LoggingService("ProxySystem");
     this._loadConfiguration(); 
     this.streamingMode = this.config.streamingMode;
+    
+    // [新增] 默认为 false，用户可通过面板开启
+    this.enableReasoning = false; 
 
     this.authSource = new AuthSource(this.logger);
     this.browserManager = new BrowserManager(
@@ -1817,6 +1835,7 @@ class ProxyServerSystem extends EventEmitter {
   }
 
   _loadConfiguration() {
+    // ... [Config loading logic unchanged] ...
     let config = {
       httpPort: 7860,
       host: "0.0.0.0",
@@ -1906,7 +1925,6 @@ class ProxyServerSystem extends EventEmitter {
       this.logger.info("[System] 未设置任何API Key，已启用默认密码: 123456");
     }
     
-    // [修改] 移除读取 models.json 的逻辑
     this.config = config;
     this.logger.info("================ [ 生效配置 ] ================");
     this.logger.info(`  HTTP 服务端口: ${this.config.httpPort}`);
@@ -1942,6 +1960,7 @@ class ProxyServerSystem extends EventEmitter {
   }
 
   async start(initialAuthIndex = null) {
+    // ... [Start logic unchanged] ...
     this.logger.info("[System] 开始弹性启动流程...");
     const allAvailableIndices = this.authSource.availableIndices;
 
@@ -1998,6 +2017,7 @@ class ProxyServerSystem extends EventEmitter {
   }
 
   _createAuthMiddleware() {
+     // ... [Auth middleware unchanged] ...
     const basicAuth = require("basic-auth"); 
 
     return (req, res, next) => {
@@ -2044,6 +2064,7 @@ class ProxyServerSystem extends EventEmitter {
   }
 
   async _startHttpServer() {
+    // ... [Server creation unchanged] ...
     const app = this._createExpressApp();
     this.httpServer = http.createServer(app);
 
@@ -2119,7 +2140,8 @@ class ProxyServerSystem extends EventEmitter {
       }
       res.redirect("/login");
     };
-app.get("/login", (req, res) => {
+    // ... [Login HTML/Route unchanged] ...
+    app.get("/login", (req, res) => {
   if (req.session.isAuthenticated) {
     return res.redirect("/");
   }
@@ -2353,7 +2375,7 @@ app.get("/login", (req, res) => {
     });
 
     // ==========================================================
-    // Section 3: 状态页面 (修复版：确保 prompt 不换行)
+    // Section 3: 状态页面 (已添加推理模式显示与按钮)
     // ==========================================================
     app.get("/", isAuthenticated, (req, res) => {
       const { config, requestHandler, authSource, browserManager } = this;
@@ -2379,7 +2401,6 @@ app.get("/login", (req, res) => {
         .map((index) => `<option value="${index}">账号 #${index}</option>`)
         .join("");
 
-      // [注意] 下面的 HTML 字符串中，script 标签里的 prompt 行已修复为单行
       const statusHtml = `
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -2395,6 +2416,7 @@ app.get("/login", (req, res) => {
         #log-container { font-size: 0.9em; max-height: 400px; overflow-y: auto; }
         .status-ok { color: #2ecc71; font-weight: bold; }
         .status-error { color: #e74c3c; font-weight: bold; }
+        .status-info { color: #3498db; font-weight: bold; }
         .label { display: inline-block; width: 220px; box-sizing: border-box; }
         .dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-left: 10px; animation: blink 1s infinite alternate; }
         @keyframes blink { from { opacity: 0.3; } to { opacity: 1; } }
@@ -2402,6 +2424,7 @@ app.get("/login", (req, res) => {
         .action-group button, .action-group select { font-size: 1em; border: 1px solid #ccc; padding: 10px 15px; border-radius: 8px; cursor: pointer; transition: background-color 0.3s ease; }
         .action-group button:hover { opacity: 0.85; }
         .action-group button { background-color: #007bff; color: white; border-color: #007bff; }
+        .action-group button.warning-btn { background-color: #f39c12; border-color: #f39c12; }
         .action-group select { background-color: #ffffff; color: #000000; -webkit-appearance: none; appearance: none; }
         @media (max-width: 600px) {
             body { padding: 0.5em; }
@@ -2423,9 +2446,8 @@ app.get("/login", (req, res) => {
         browserManager.browser ? "status-ok" : "status-error"
       }">${!!browserManager.browser}</span>
 --- 服务配置 ---
-<span class="label">流模式</span>: ${
-        config.streamingMode
-      } (仅启用流式传输时生效)
+<span class="label">流模式</span>: ${config.streamingMode} (仅启用流式传输时生效)
+<span class="label">推理模式 (Thinking)</span>: <span class="${this.enableReasoning ? "status-info" : ""}">${this.enableReasoning ? "已启用 (注入thinkingConfig)" : "已禁用"}</span>
 <span class="label">立即切换 (状态码)</span>: ${
         config.immediateSwitchStatusCodes.length > 0
           ? `[${config.immediateSwitchStatusCodes.join(", ")}]`
@@ -2459,6 +2481,7 @@ app.get("/login", (req, res) => {
                 <select id="accountIndexSelect">${accountOptionsHtml}</select>
                 <button onclick="switchSpecificAccount()">切换账号</button>
                 <button onclick="toggleStreamingMode()">切换流模式</button>
+                <button class="warning-btn" onclick="toggleReasoning()">切换推理模式</button>
             </div>
         </div>
         </div>
@@ -2469,11 +2492,16 @@ app.get("/login", (req, res) => {
                 const accountDetailsHtml = data.status.accountDetails.map(acc => {
                   return '<span class="label" style="padding-left: 20px;">账号' + acc.index + '</span>: ' + acc.name;
                 }).join('\\n');
+                
+                const reasoningClass = data.status.enableReasoning ? "status-info" : "";
+                const reasoningText = data.status.enableReasoning ? "已启用 (注入thinkingConfig)" : "已禁用";
+
                 statusPre.innerHTML = 
                     '<span class="label">服务状态</span>: <span class="status-ok">Running</span>\\n' +
                     '<span class="label">浏览器连接</span>: <span class="' + (data.status.browserConnected ? "status-ok" : "status-error") + '">' + data.status.browserConnected + '</span>\\n' +
                     '--- 服务配置 ---\\n' +
                     '<span class="label">流模式</span>: ' + data.status.streamingMode + '\\n' +
+                    '<span class="label">推理模式 (Thinking)</span>: <span class="' + reasoningClass + '">' + reasoningText + '</span>\\n' +
                     '<span class="label">立即切换 (状态码)</span>: ' + data.status.immediateSwitchStatusCodes + '\\n' +
                     '<span class="label">API 密钥</span>: ' + data.status.apiKeySource + '\\n' +
                     '--- 账号状态 ---\\n' +
@@ -2515,7 +2543,6 @@ app.get("/login", (req, res) => {
             });
         }
 
-        // [这里是关键修复] 确保这一行在一行内，不要有物理换行
         function toggleStreamingMode() { 
             const newMode = prompt('请输入新的流模式 (real 或 fake):', '${this.config.streamingMode}');
             if (newMode === 'fake' || newMode === 'real') {
@@ -2529,6 +2556,16 @@ app.get("/login", (req, res) => {
             } else if (newMode !== null) { 
                 alert('无效的模式！请只输入 "real" 或 "fake"。'); 
             } 
+        }
+
+        function toggleReasoning() {
+             fetch('/api/toggle-reasoning', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}) 
+             })
+            .then(res => res.text()).then(data => { alert(data); updateContent(); })
+            .catch(err => alert('切换失败: ' + err));
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -2561,6 +2598,8 @@ app.get("/login", (req, res) => {
       const data = {
         status: {
           streamingMode: `${this.streamingMode} (仅启用流式传输时生效)`,
+          // [新增] 返回推理模式状态
+          enableReasoning: this.enableReasoning, 
           browserConnected: !!browserManager.browser,
           immediateSwitchStatusCodes:
             config.immediateSwitchStatusCodes.length > 0
@@ -2640,6 +2679,17 @@ app.get("/login", (req, res) => {
         res.status(400).send('无效模式. 请用 "fake" 或 "real".');
       }
     });
+    
+    // ==========================================================
+    // [新增] 切换推理模式 (Toggle Reasoning) 接口
+    // ==========================================================
+    app.post("/api/toggle-reasoning", isAuthenticated, (req, res) => {
+      this.enableReasoning = !this.enableReasoning;
+      const statusText = this.enableReasoning ? "已启用" : "已禁用";
+      this.logger.info(`[WebUI] 推理模式 (Thinking) 注入状态已切换为: ${statusText}`);
+      res.status(200).send(`推理模式 (Thinking) 已${statusText}。所有新的 OpenAI 请求都将受此影响。`);
+    });
+
     app.use(this._createAuthMiddleware());
 
     app.get("/v1/models", (req, res) => {
