@@ -1933,17 +1933,6 @@ class ProxyServerSystem extends EventEmitter {
       apiKeySource: "未设置",
     };
 
-    const configPath = path.join(__dirname, "config.json");
-    try {
-      if (fs.existsSync(configPath)) {
-        const fileConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-        config = { ...config, ...fileConfig };
-        this.logger.info("[System] 已从 config.json 加载配置。");
-      }
-    } catch (error) {
-      this.logger.warn(`[System] 无法读取或解析 config.json: ${error.message}`);
-    }
-
     if (process.env.PORT)
       config.httpPort = parseInt(process.env.PORT, 10) || config.httpPort;
     if (process.env.HOST) config.host = process.env.HOST;
@@ -1976,7 +1965,7 @@ class ProxyServerSystem extends EventEmitter {
       Array.isArray(config.immediateSwitchStatusCodes)
     ) {
       rawCodes = config.immediateSwitchStatusCodes.join(",");
-      codesSource = "config.json 文件或默认值";
+      codesSource = "系统默认值";
     }
 
     if (rawCodes && typeof rawCodes === "string") {
