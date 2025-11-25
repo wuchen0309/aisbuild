@@ -60,5 +60,10 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
           build-args: |
             CAMOUFOX_URL=${{ env.CAMOUFOX_URL }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # ==========================================================
+          # 【关键修改】禁用缓存，强制清理“幽灵层”
+          # 这次构建会慢一点，但能把体积从 5GB 压回 1.9GB
+          # ==========================================================
+          no-cache: true
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
