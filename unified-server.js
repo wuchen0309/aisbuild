@@ -2485,23 +2485,89 @@ class ProxyServerSystem extends EventEmitter {
         input:checked + .slider:before { transform: translateX(22px); }
 
         /* Inputs & Buttons */
-        .action-btn { background: var(--accent-color); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 14px; transition: opacity 0.2s; }
+        .action-btn { background: var(--accent-color); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 14px; transition: opacity 0.2s; white-space: nowrap; }
         .action-btn:hover { opacity: 0.9; }
-        select { padding: 8px 30px 8px 12px; border-radius: 8px; border: 1px solid #d1d1d6; background: #fff; font-size: 14px; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 8px center; background-size: 12px; }
+        
+        /* 
+           [修复] 下拉菜单容器与样式优化 
+           min-width: 0 是 Flexbox 中允许子元素宽度收缩的关键属性
+        */
+        .control-group { display: flex; gap: 10px; align-items: center; }
+        select { 
+            padding: 8px 30px 8px 12px; 
+            border-radius: 8px; 
+            border: 1px solid #d1d1d6; 
+            background: #fff; 
+            font-size: 14px; 
+            -webkit-appearance: none; 
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); 
+            background-repeat: no-repeat; 
+            background-position: right 8px center; 
+            background-size: 12px;
+            max-width: 100%; /* 防止溢出 */
+        }
         .num-input { width: 60px; padding: 6px; border: 1px solid #d1d1d6; border-radius: 6px; text-align: center; margin-right: 10px; }
 
-        /* Logs */
-        .log-container { background: #1e1e1e; color: #f0f0f0; padding: 15px; font-family: 'SF Mono', Consolas, monospace; font-size: 12px; line-height: 1.5; height: 300px; overflow-y: auto; border-radius: 0 0 16px 16px; white-space: pre-wrap; }
-        
+        /* 
+           [修复] 日志区域响应式优化 
+           Desktop: 更高的高度，稍大的字体以便阅读
+           Mobile: 保持紧凑
+        */
+        .log-container { 
+            background: #1e1e1e; 
+            color: #f0f0f0; 
+            padding: 15px; 
+            font-family: 'SF Mono', Consolas, monospace; 
+            line-height: 1.5; 
+            overflow-y: auto; 
+            border-radius: 0 0 16px 16px; 
+            white-space: pre-wrap; 
+            
+            /* 移动端默认样式 */
+            font-size: 11px; 
+            height: 300px;
+        }
+
         /* Toast */
         .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 100; backdrop-filter: blur(5px); }
         .toast.show { opacity: 1; top: 30px; }
 
+        /* 
+           [修复] 移动端适配逻辑 
+        */
         @media (max-width: 600px) {
             .container { padding: 0 10px; margin-top: 20px; }
             .row-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+            
+            /* 让最后一列（控件区域）占满宽度 */
             .row-item > div:last-child { width: 100%; display: flex; justify-content: space-between; align-items: center; }
             .row-value { margin-top: 5px; }
+
+            /* 强制下拉菜单自适应收缩，给按钮腾出空间 */
+            .control-group { width: 100%; }
+            .control-group select { 
+                flex: 1;       /* 占据剩余空间 */
+                min-width: 0;  /* 允许收缩至内容以下，配合text-overflow */
+                width: 0;      /* 配合flex:1，强制触发布局重算 */
+            }
+            .control-group .action-btn {
+                flex-shrink: 0; /* 按钮禁止收缩 */
+                margin-left: 5px;
+            }
+        }
+
+        /* 
+           [修复] 桌面端适配逻辑 
+        */
+        @media (min-width: 601px) {
+            .log-container {
+                height: 500px;     /* 桌面端高度增加 */
+                max-height: 60vh;  /* 最大不超过视口60% */
+                font-size: 13px;   /* 字体稍微调大，更清晰 */
+            }
+            select {
+                max-width: 300px;  /* 桌面端限制下拉菜单最大宽度，美观 */
+            }
         }
     </style>
 </head>
@@ -2592,7 +2658,8 @@ class ProxyServerSystem extends EventEmitter {
                     <div>
                         <div class="row-label">手动切换账号</div>
                     </div>
-                    <div style="display: flex; gap: 10px;">
+                    <!-- [修复] 使用 control-group 类替代内联样式，优化布局 -->
+                    <div class="control-group">
                         <select id="accountSelector"></select>
                         <button class="action-btn" onclick="switchAccount()">切换</button>
                     </div>
@@ -2667,7 +2734,6 @@ class ProxyServerSystem extends EventEmitter {
 
         async function switchAccount() {
             const idx = document.getElementById('accountSelector').value;
-            // 使用单引号拼接字符串，彻底避免反引号冲突
             if(!confirm('确定切换到账号 #' + idx + ' 吗？这会重置当前浏览器会话。')) return;
             
             showToast('正在切换账号...');
@@ -2716,8 +2782,14 @@ class ProxyServerSystem extends EventEmitter {
                 s.accountDetails.forEach(acc => {
                     const opt = document.createElement('option');
                     opt.value = acc.index;
-                    // 使用单引号拼接，避免反引号冲突
-                    opt.textContent = '#' + acc.index + ' - ' + acc.name;
+                    
+                    /* [修复] 处理过长的账号名称显示，在下拉列表内部做简单的截断处理(视觉上) */
+                    let displayName = acc.name;
+                    if (window.innerWidth < 600 && displayName.length > 20) {
+                        displayName = displayName.substring(0, 18) + '...';
+                    }
+                    opt.textContent = '#' + acc.index + ' - ' + displayName;
+                    
                     if(acc.index == s.currentAuthIndex) opt.textContent += ' (当前)';
                     selector.appendChild(opt);
                 });
