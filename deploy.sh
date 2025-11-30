@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # --- 项目配置 ---
-CONTAINER_NAME="build2api"
-IMAGE_NAME="ghcr.io/wuchen0309/build2api:latest"
+CONTAINER_NAME="aisbuild"
+IMAGE_NAME="ghcr.io/wuchen0309/aisbuild:latest"
 HOST_PORT="7860"
 ENV_FILE="app.env" # 指定您的环境文件名
 

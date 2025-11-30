@@ -187,9 +187,11 @@ class RequestProcessor {
       ? requestSpec.path.substring(1)
       : requestSpec.path;
     const queryParams = new URLSearchParams(requestSpec.query_params);
+
     if (requestSpec.streaming_mode === "fake") {
-      Logger.output("假流式模式激活，正在修改请求...");
+      
       if (pathSegment.includes(":streamGenerateContent")) {
+        Logger.output("假流式模式激活，正在转换流式路径...");
         pathSegment = pathSegment.replace(
           ":streamGenerateContent",
           ":generateContent"
@@ -198,9 +200,10 @@ class RequestProcessor {
       }
       if (queryParams.has("alt") && queryParams.get("alt") === "sse") {
         queryParams.delete("alt");
-        Logger.output('已移除 "alt=sse" 查询参数。');
+        Logger.output('假流式模式: 已移除 "alt=sse" 查询参数。');
       }
     }
+    
     const queryString = queryParams.toString();
     return `https://${this.targetDomain}/${pathSegment}${
       queryString ? "?" + queryString : ""

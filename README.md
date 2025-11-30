@@ -1,6 +1,6 @@
-# Build2API 一键部署指南
+# aisbuild 一键部署指南
 
-本项目提供了一套自动化脚本，适配 VPS 环境，支持通过 Docker 快速部署 Build2API 服务。
+本项目提供了一套自动化脚本，适配 VPS 环境，支持通过 Docker 快速部署 aisbuild 服务。
 
 ## 📋 准备工作
 
@@ -88,6 +88,6 @@ HOST_PORT="8080" # 修改为你需要的端口
 ```
 
 ### 3. 常用命令
-*   **查看日志**: `docker logs -f build2api`
-*   **停止服务**: `docker stop build2api`
+*   **查看日志**: `docker logs -f aisbuild`
+*   **停止服务**: `docker stop aisbuild`
 *   **更新服务**: 重新运行 `./deploy.sh` 即可。
