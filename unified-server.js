@@ -2788,19 +2788,30 @@ class ProxyServerSystem extends EventEmitter {
                 document.getElementById('usageStats').textContent = '使用: ' + s.usageCount + ' | 失败: ' + s.failureCount;
 
                 const selector = document.getElementById('accountSelector');
-                const savedVal = selector.value;
-                selector.innerHTML = '';
-                s.accountDetails.forEach(acc => {
-                    const opt = document.createElement('option');
-                    opt.value = acc.index;
-                    let name = acc.name || 'Account';
-                    // 仅在下拉框文本层面做轻微截断，防止选项把框撑得太难看
-                    if(name.length > 50) name = name.substring(0, 48) + '...';
-                    opt.textContent = '#' + acc.index + ' - ' + name;
-                    if(acc.index == s.currentAuthIndex) opt.textContent += ' (当前)';
-                    selector.appendChild(opt);
-                });
-                if(savedVal) selector.value = savedVal;
+                // [修复1] 防闪烁：只有当下拉框没有被聚焦（用户没在操作）时才更新
+                if (document.activeElement !== selector) {
+                    const savedVal = selector.value;
+                    selector.innerHTML = '';
+                    
+                    // [修复2] 响应式截断：判断当前屏幕宽度
+                    const isMobile = window.innerWidth <= 768;
+
+                    s.accountDetails.forEach(acc => {
+                        const opt = document.createElement('option');
+                        opt.value = acc.index;
+                        let name = acc.name || 'Account';
+                        
+                        // [逻辑变更] 只有在移动端(宽度<=768) 且 名字过长时才截断，PC端全显
+                        if(isMobile && name.length > 50) {
+                            name = name.substring(0, 48) + '...';
+                        }
+                        
+                        opt.textContent = '#' + acc.index + ' - ' + name;
+                        if(acc.index == s.currentAuthIndex) opt.textContent += ' (当前)';
+                        selector.appendChild(opt);
+                    });
+                    if(savedVal) selector.value = savedVal;
+                }
 
                 const logBox = document.getElementById('logContainer');
                 const atBottom = logBox.scrollHeight - logBox.clientHeight <= logBox.scrollTop + 50;
