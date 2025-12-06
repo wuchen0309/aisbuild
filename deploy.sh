@@ -5,13 +5,48 @@ CONTAINER_NAME="aisbuild"
 IMAGE_NAME="ghcr.io/wuchen0309/aisbuild:latest"
 HOST_PORT="7860"
 ENV_FILE="app.env"
-PROXY_URL=""  # 如需代理请在此填入，例如 http://127.0.0.1:7890
+PROXY_URL=""
 
 # --- 环境检查 ---
 if [ ! -f "$ENV_FILE" ]; then
     echo "❌ 错误: 环境文件 '$ENV_FILE' 不存在！"
     exit 1
 fi
+
+# ==========================================
+# 强制用户设置 API Key
+# ==========================================
+echo ""
+echo "--- 🔑 配置代理密码 (API Key) ---"
+
+# 初始化变量
+USER_API_KEY=""
+
+# 循环检查：如果变量为空，则一直要求输入
+while [ -z "$USER_API_KEY" ]; do
+    read -p "请输入您想要设置的 API Key (必填，不能为空): " USER_API_KEY
+    
+    # 去除可能输入的前后空格
+    USER_API_KEY=$(echo "$USER_API_KEY" | xargs)
+
+    if [ -z "$USER_API_KEY" ]; then
+        echo "❌ 错误: API Key 是必须设置的，不能留空！请重新输入。"
+        echo ""
+    fi
+done
+
+# 写入配置到 app.env
+if grep -q "^API_KEYS=" "$ENV_FILE"; then
+    # 存在则替换
+    sed -i "s|^API_KEYS=.*|API_KEYS=$USER_API_KEY|" "$ENV_FILE"
+else
+    # 不存在则追加
+    echo -e "\nAPI_KEYS=$USER_API_KEY" >> "$ENV_FILE"
+fi
+
+echo "✅ API Key 已成功配置。"
+echo ""
+# ==========================================
 
 echo "🚀 开始部署: $CONTAINER_NAME"
 
@@ -54,13 +89,11 @@ docker image prune -f > /dev/null 2>&1
 # --- 🔥 自动放行防火墙端口 ---
 echo "--> 检查防火墙设置..."
 if command -v ufw > /dev/null; then
-    # Ubuntu/Debian 使用 UFW
     if ! sudo ufw status | grep -q "$HOST_PORT"; then
         echo "   检测到 UFW，正在放行端口 $HOST_PORT..."
         sudo ufw allow "$HOST_PORT"/tcp
     fi
 elif command -v firewall-cmd > /dev/null; then
-    # CentOS/RHEL 使用 Firewalld
     if ! sudo firewall-cmd --list-ports | grep -q "$HOST_PORT/tcp"; then
         echo "   检测到 Firewalld，正在放行端口 $HOST_PORT..."
         sudo firewall-cmd --zone=public --add-port="$HOST_PORT"/tcp --permanent > /dev/null
