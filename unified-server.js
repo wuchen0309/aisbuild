@@ -520,7 +520,7 @@ class BrowserManager {
   }
 
   // ===================================================================================
-  // [修改] 后台常驻唤醒守护 (V13 双重指纹校验版 - 绝对唯一)
+  // [修改] 后台常驻唤醒守护 (V14 正式版 - 精简日志 + 点击统计)
   // ===================================================================================
   async _startBackgroundWakeup() {
     // 1. 初始缓冲
@@ -528,78 +528,81 @@ class BrowserManager {
     
     if (!this.page || this.page.isClosed()) return;
 
-    // 2. 主动发起预热
-    this.logger.info('[Wakeup] 📡 发起预热请求...');
-    try { await this.page.evaluate(() => fetch('/v1beta/models').catch(() => {})); } catch (e) {}
+    this.logger.info('[Browser] (后台任务) 唤醒守护进程已启动 (Target: .interaction-modal p)');
 
-    // 3. 等待
-    this.logger.info('[Wakeup] ⏳ 等待 3 秒...');
-    await this.page.waitForTimeout(3000);
-
-    this.logger.info('[Browser] (后台任务) 🔥 唤醒守护 V13 已启动 (指纹校验: Icon + Text)...');
-
-    // 4. 无限循环
+    // 2. 无限循环守护
     while (this.page && !this.page.isClosed()) {
         try {
-            // --- A. 清理干扰 ---
+            // --- A. 顺手清理干扰 (Got it) ---
             try {
                 const gotIt = this.page.locator('button:has-text("Got it")').first();
                 if (await gotIt.isVisible({ timeout: 50 })) await gotIt.click({ force: true });
                 await this.page.evaluate(() => document.querySelectorAll('.cdk-overlay-backdrop').forEach(el => el.remove()));
             } catch (e) {}
 
-            // --- B. 核心查找逻辑 (指纹匹配) ---
-            
-            // 逻辑解释：
-            // 1. .interaction-modal p  -> 必须是交互弹窗里的段落
-            // 2. hasText: /rocket_launch/ -> 必须包含火箭图标的代码
-            // 3. hasText: /Launch/        -> 必须包含 Launch 文字
-            // 只有同时满足这三点，才是我们要找的“唤醒按钮”
-            // 其他任何弹窗（Error/Confirm/Info）都不可能同时包含 rocket_launch 图标和 Launch 文字
-            
+            // --- B. 核心查找逻辑 (基于 CSS 类名和内容指纹) ---
+            // 锁定 interaction-modal 内部的段落，且必须包含 rocket_launch 图标代码和 Launch 文字
             const targetElement = this.page.locator('.interaction-modal p')
-                .filter({ hasText: 'rocket_launch' }) // 指纹1：图标
-                .filter({ hasText: /Launch/i })       // 指纹2：文字
+                .filter({ hasText: 'rocket_launch' }) 
+                .filter({ hasText: /Launch/i })       
                 .first();
 
             // 检测是否存在且可见
             if (await targetElement.isVisible({ timeout: 500 })) {
                 
-                // 再次获取文本做最终确认日志
+                // 获取弹窗文本用于记录
                 const text = (await targetElement.innerText()).replace(/\n/g, ' ').trim();
-                this.logger.warn(`⚠️ [Wakeup] 👁️ 指纹匹配成功! 发现休眠弹窗: [${text}]`);
-                this.logger.warn('⚠️ [Wakeup] 🚀 启动 30 连击...');
+                this.logger.warn(`[Browser] 检测到应用休眠弹窗，内容: [${text}]`);
+                this.logger.info('[Browser] 正在执行唤醒操作...');
 
-                // --- C. 狂暴连点 ---
+                // --- C. 连点统计逻辑 ---
+                let clickCount = 0;
+                let isDismissed = false;
+
                 for (let i = 1; i <= 30; i++) {
+                    // 1. 检查是否已消失
+                    if (!await targetElement.isVisible({ timeout: 50 })) {
+                        isDismissed = true;
+                        break;
+                    }
+
                     try {
-                        // 每次点击前确认
-                        if (!await targetElement.isVisible({ timeout: 50 })) {
-                            this.logger.info(`[Wakeup] ✅ 弹窗已消失，停止连击。`);
-                            break;
-                        }
-                        // 强制点击这个 p 标签 (它就是那个按钮的本体)
+                        // 2. 执行点击
                         await targetElement.click({ force: true, noWaitAfter: true, timeout: 500 });
-                    } catch (err) { break; }
+                        clickCount++;
+                    } catch (err) { 
+                        // 点击报错通常意味着元素在点击瞬间消失了，视为成功
+                        isDismissed = true;
+                        break; 
+                    }
                     
+                    // 间隔 100ms
                     await this.page.waitForTimeout(100);
                 }
                 
-                // 冷却
+                // --- D. 输出结果 ---
+                if (isDismissed) {
+                    this.logger.info(`[Browser] ✅ 唤醒成功！弹窗已消失 (共点击 ${clickCount} 次)。`);
+                } else {
+                    this.logger.warn(`[Browser] ⚠️ 已尝试点击 ${clickCount} 次，但弹窗可能仍存在，进入冷却期。`);
+                }
+                
+                // 强制冷却 3 秒
                 await this.page.waitForTimeout(3000);
 
             } else {
-                // 常规巡逻
+                // 未检测到休眠，常规等待 2 秒
                 await this.page.waitForTimeout(2000);
             }
 
         } catch (e) {
+            // 捕获页面关闭或其他意外错误
             if (this.page && this.page.isClosed()) break;
             await this.page.waitForTimeout(2000); 
         }
     }
     
-    this.logger.info('[Browser] (后台任务) 页面已关闭，守护进程停止。');
+    this.logger.info('[Browser] (后台任务) 页面已关闭，唤醒守护进程停止。');
   }
 }
 // ===================================================================================
